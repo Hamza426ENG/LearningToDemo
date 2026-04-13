@@ -1,12 +1,10 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
 export async function startSession(data: {
   topic: string;
   context: string;
   mode: string;
   voice: string;
 }) {
-  const res = await fetch(`${API_URL}/api/session/start`, {
+  const res = await fetch(`/api/session/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -17,12 +15,18 @@ export async function startSession(data: {
 
 export async function endSession(
   sessionId: string,
+  meta: { topic: string; context: string; mode: string; startedAt: string },
   transcript: { role: string; text: string; timestamp: string }[]
 ) {
-  const res = await fetch(`${API_URL}/api/session/${sessionId}/end`, {
+  const res = await fetch(`/api/session/assess`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript }),
+    body: JSON.stringify({
+      sessionId,
+      ...meta,
+      transcript,
+      endedAt: new Date().toISOString(),
+    }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

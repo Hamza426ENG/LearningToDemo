@@ -21,6 +21,7 @@ function SessionContent() {
   const [isEnding, setIsEnding] = useState(false);
   const [error, setError] = useState("");
   const [duration, setDuration] = useState("00:00");
+  const startedAtRef = useRef<string>("");
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasInitialized = useRef(false);
@@ -42,6 +43,7 @@ function SessionContent() {
 
       // Start timer
       startTimeRef.current = Date.now();
+      startedAtRef.current = new Date().toISOString();
       timerRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         const mins = String(Math.floor(elapsed / 60)).padStart(2, "0");
@@ -80,7 +82,11 @@ function SessionContent() {
     disconnect();
 
     try {
-      const result = await endSession(sessionId, transcript);
+      const result = await endSession(
+        sessionId,
+        { topic, context, mode, startedAt: startedAtRef.current },
+        transcript
+      );
       // Store assessment in sessionStorage and navigate
       sessionStorage.setItem(
         "assessment",
