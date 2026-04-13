@@ -22,6 +22,8 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   // Track active response to prevent overlaps
   const activeResponseIdRef = useRef<string | null>(null);
@@ -149,6 +151,8 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
       pc.ontrack = (e) => {
         if (audioEl.srcObject !== e.streams[0]) {
           audioEl.srcObject = e.streams[0];
+          remoteStreamRef.current = e.streams[0];
+          setRemoteStream(e.streams[0]);
           // Force playback start
           audioEl.play().catch((err) => {
             console.warn("Audio playback failed:", err);
@@ -234,6 +238,8 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
       audioElRef.current = null;
     }
     dcRef.current = null;
+    remoteStreamRef.current = null;
+    setRemoteStream(null);
     isRespondingRef.current = false;
     activeResponseIdRef.current = null;
     setIsConnected(false);
@@ -266,6 +272,7 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
     isListening,
     transcript,
     avatarState,
+    remoteStream,
     connect,
     disconnect,
     sendMessage,
