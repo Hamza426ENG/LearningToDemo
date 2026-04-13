@@ -8,6 +8,8 @@ interface VideoAvatarProps {
   src?: string;
 }
 
+const AVATAR_SRC = "/AI-talking-avatar.gif";
+
 /**
  * Video-based avatar that loops a pre-rendered clip while the AI speaks
  * and freezes (pauses) when idle/listening/thinking.
@@ -16,31 +18,14 @@ interface VideoAvatarProps {
 export default function VideoAvatar({
   state,
   remoteStream,
-  src = "/mine.mp4",
+  src = AVATAR_SRC,
 }: VideoAvatarProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const rafRef = useRef<number | null>(null);
-
-  // Keep the video continuously playing (never pause/change rate) —
-  // any pause/seek causes visible stutter because the browser has to
-  // re-buffer. We indicate "paused" state visually via overlay only.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const startPlayback = () => {
-      video.play().catch(() => {
-        /* retry on next user gesture */
-      });
-    };
-    if (video.readyState >= 2) startPlayback();
-    else video.addEventListener("canplay", startPlayback, { once: true });
-    return () => video.removeEventListener("canplay", startPlayback);
-  }, []);
 
   // Audio amplitude → glow scale (visual reactivity)
   useEffect(() => {
@@ -62,23 +47,30 @@ export default function VideoAvatar({
 
     const data = new Uint8Array(analyser.frequencyBinCount);
 
-    const tick = () => {
+    // Throttle to ~20fps — the glow doesn't need 60fps and reducing analyser
+    // sampling lowers CPU, leaving more headroom for WebRTC audio decoding.
+    let lastTime = 0;
+    const minInterval = 50; // ms
+
+    const tick = (now: number) => {
       if (cancelled) return;
-      analyser.getByteFrequencyData(data);
-      let sum = 0;
-      for (let i = 2; i < 40; i++) sum += data[i];
-      const avg = sum / 38;
-      const intensity = Math.min(1, Math.max(0, (avg - 10) / 100));
-      // Apply CSS variable for glow scale
-      if (containerRef.current) {
-        containerRef.current.style.setProperty(
-          "--audio-intensity",
-          intensity.toString()
-        );
+      if (now - lastTime >= minInterval) {
+        lastTime = now;
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 2; i < 40; i++) sum += data[i];
+        const avg = sum / 38;
+        const intensity = Math.min(1, Math.max(0, (avg - 10) / 100));
+        if (containerRef.current) {
+          containerRef.current.style.setProperty(
+            "--audio-intensity",
+            intensity.toString()
+          );
+        }
       }
       rafRef.current = requestAnimationFrame(tick);
     };
-    tick();
+    rafRef.current = requestAnimationFrame(tick);
 
     return () => {
       cancelled = true;
@@ -124,16 +116,12 @@ export default function VideoAvatar({
           className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10"
           style={{ width: 320, height: 380 }}
         >
-          <video
-            ref={videoRef}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={src}
-            loop
-            muted
-            autoPlay
-            playsInline
-            preload="auto"
-            disablePictureInPicture
-            className="absolute inset-0 w-full h-full object-cover will-change-transform"
+            alt="AI Coach Avatar"
+            draggable={false}
+            className="absolute inset-0 w-full h-full object-cover will-change-transform select-none"
             style={{
               filter:
                 state === "speaking"
@@ -142,7 +130,7 @@ export default function VideoAvatar({
                   ? "brightness(0.95) saturate(0.95)"
                   : state === "thinking"
                   ? "brightness(0.9) saturate(0.95)"
-                  : "brightness(0.8) saturate(0.85)",
+                  : "brightness(0.75) saturate(0.85)",
               transition: "filter 0.6s ease",
             }}
           />

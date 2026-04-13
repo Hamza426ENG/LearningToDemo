@@ -151,9 +151,28 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
       pc.ontrack = (e) => {
         if (audioEl.srcObject !== e.streams[0]) {
           audioEl.srcObject = e.streams[0];
-          remoteStreamRef.current = e.streams[0];
-          setRemoteStream(e.streams[0]);
-          // Force playback start
+
+          // Add jitter buffer hint — gives WebRTC ~120ms to smooth out network
+          // jitter, dramatically reducing voice break-ups at the cost of a
+          // tiny bit of latency (imperceptible in conversation).
+          const receivers = pc.getReceivers();
+          for (const r of receivers) {
+            try {
+              (r as RTCRtpReceiver & { playoutDelayHint?: number }).playoutDelayHint = 0.12;
+            } catch {
+              /* not supported in this browser */
+            }
+          }
+
+          // For the analyser, clone the stream so analysis runs on a SEPARATE
+          // MediaStream and never competes for buffers with the playback path.
+          // This eliminates the audio drop-outs caused by simultaneous
+          // sampling and playback.
+          const clonedTrack = e.track.clone();
+          const clonedStream = new MediaStream([clonedTrack]);
+          remoteStreamRef.current = clonedStream;
+          setRemoteStream(clonedStream);
+
           audioEl.play().catch((err) => {
             console.warn("Audio playback failed:", err);
           });
@@ -168,14 +187,15 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
         console.log("ICE connection state:", pc.iceConnectionState);
       };
 
-      // Get microphone with noise suppression
+      // Get microphone with noise suppression. We deliberately do NOT pin
+      // sampleRate/channelCount — letting the browser use its native settings
+      // avoids forced resampling, which is a common cause of CPU spikes and
+      // audio jitter on the playback side.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 24000,
         },
       });
       pc.addTrack(stream.getTracks()[0], stream);
