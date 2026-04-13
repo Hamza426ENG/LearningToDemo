@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import HumanAvatar from "@/components/HumanAvatar";
+import VideoAvatar from "@/components/VideoAvatar";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import SessionControls from "@/components/SessionControls";
 import { useRealtimeSession, TranscriptEntry } from "@/hooks/useRealtimeSession";
@@ -28,10 +28,6 @@ function SessionContent() {
 
   const { isConnected, transcript, avatarState, remoteStream, connect, disconnect } =
     useRealtimeSession();
-
-  // Map voice → avatar gender variant
-  const avatarVariant: "male" | "female" =
-    voice === "echo" || voice === "ash" ? "male" : "female";
 
   const initSession = useCallback(async () => {
     try {
@@ -159,10 +155,9 @@ function SessionContent() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Avatar */}
         <div className="w-1/2 flex flex-col items-center justify-center bg-gray-950 border-r border-gray-800">
-          <HumanAvatar
+          <VideoAvatar
             state={avatarState}
             remoteStream={remoteStream}
-            variant={avatarVariant}
           />
           {!isConnected && !isEnding && (
             <div className="mt-6 text-gray-500 text-sm animate-pulse">
