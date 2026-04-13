@@ -55,23 +55,11 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
     [options]
   );
 
-  // Cancel any in-progress response
-  const cancelCurrentResponse = useCallback(() => {
-    if (!dcRef.current || dcRef.current.readyState !== "open") return;
-    if (!isRespondingRef.current) return;
-
-    dcRef.current.send(JSON.stringify({ type: "response.cancel" }));
-    isRespondingRef.current = false;
-    activeResponseIdRef.current = null;
-    assistantTranscriptBuffer.current = "";
-  }, []);
-
   const handleRealtimeEvent = useCallback(
     (event: any) => {
       switch (event.type) {
-        // User started speaking — cancel any AI response in progress
+        // User started speaking — server VAD handles interruption automatically
         case "input_audio_buffer.speech_started":
-          cancelCurrentResponse();
           updateAvatarState("listening");
           break;
 
@@ -127,11 +115,17 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           break;
       }
     },
-    [addTranscriptEntry, updateAvatarState, cancelCurrentResponse]
+    [addTranscriptEntry, updateAvatarState]
   );
 
   const connect = useCallback(
     async (clientSecret: string) => {
+      // Guard: never create a second connection if one already exists
+      if (pcRef.current) {
+        console.warn("Realtime connection already active — skipping duplicate connect()");
+        return;
+      }
+
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
 
@@ -222,9 +216,6 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
     (text: string) => {
       if (!dcRef.current || dcRef.current.readyState !== "open") return;
 
-      // Cancel any in-progress response first
-      cancelCurrentResponse();
-
       dcRef.current.send(
         JSON.stringify({
           type: "conversation.item.create",
@@ -238,7 +229,7 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
       dcRef.current.send(JSON.stringify({ type: "response.create" }));
       addTranscriptEntry("user", text);
     },
-    [addTranscriptEntry, cancelCurrentResponse]
+    [addTranscriptEntry]
   );
 
   return {

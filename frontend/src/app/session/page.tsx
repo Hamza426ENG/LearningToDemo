@@ -23,6 +23,7 @@ function SessionContent() {
   const [duration, setDuration] = useState("00:00");
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasInitialized = useRef(false);
 
   const { isConnected, transcript, avatarState, connect, disconnect } =
     useRealtimeSession();
@@ -57,10 +58,16 @@ function SessionContent() {
       router.push("/");
       return;
     }
+    // Guard against React Strict Mode double-mount in dev
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
     initSession();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      disconnect();
+      hasInitialized.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
