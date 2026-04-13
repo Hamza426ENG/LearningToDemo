@@ -26,63 +26,21 @@ export default function VideoAvatar({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // Smoothly ramp playbackRate between 0 (paused) and 1 (full speed) instead
-  // of hard play/pause — eliminates visible stutter when the AI starts/stops
-  // speaking.
-  const targetRateRef = useRef(0);
-  const rampRafRef = useRef<number | null>(null);
-
+  // Keep the video continuously playing (never pause/change rate) —
+  // any pause/seek causes visible stutter because the browser has to
+  // re-buffer. We indicate "paused" state visually via overlay only.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    // Ensure playback is started (HTML <video> with playbackRate>0 will play
-    // only after .play()). We always keep it "playing" — the rate controls
-    // motion.
-    const ensurePlaying = () => {
-      // Set a tiny rate first so play() doesn't error on iOS, then ramp.
+    const startPlayback = () => {
       video.play().catch(() => {
-        /* will retry on user gesture */
+        /* retry on next user gesture */
       });
     };
-    if (video.readyState >= 2) ensurePlaying();
-    else video.addEventListener("canplay", ensurePlaying, { once: true });
-
-    // Target rate based on state
-    targetRateRef.current = state === "speaking" ? 1.0 : 0.0;
-
-    // Smoothly interpolate current → target rate
-    const step = () => {
-      const current = video.playbackRate;
-      const target = targetRateRef.current;
-      const diff = target - current;
-      if (Math.abs(diff) < 0.02) {
-        // Snap & stop animating
-        try {
-          video.playbackRate = target;
-        } catch {
-          /* ignore */
-        }
-        rampRafRef.current = null;
-        return;
-      }
-      // Ease ~0.12 per frame → ~250ms ramp at 60fps
-      const next = Math.max(0, Math.min(1, current + diff * 0.12));
-      try {
-        video.playbackRate = next;
-      } catch {
-        /* ignore */
-      }
-      rampRafRef.current = requestAnimationFrame(step);
-    };
-    if (rampRafRef.current) cancelAnimationFrame(rampRafRef.current);
-    rampRafRef.current = requestAnimationFrame(step);
-
-    return () => {
-      video.removeEventListener("canplay", ensurePlaying);
-      if (rampRafRef.current) cancelAnimationFrame(rampRafRef.current);
-    };
-  }, [state]);
+    if (video.readyState >= 2) startPlayback();
+    else video.addEventListener("canplay", startPlayback, { once: true });
+    return () => video.removeEventListener("canplay", startPlayback);
+  }, []);
 
   // Audio amplitude → glow scale (visual reactivity)
   useEffect(() => {
@@ -181,11 +139,23 @@ export default function VideoAvatar({
                 state === "speaking"
                   ? "brightness(1.05) saturate(1.1)"
                   : state === "listening"
-                  ? "brightness(1) saturate(1)"
+                  ? "brightness(0.95) saturate(0.95)"
                   : state === "thinking"
                   ? "brightness(0.9) saturate(0.95)"
                   : "brightness(0.8) saturate(0.85)",
               transition: "filter 0.6s ease",
+            }}
+          />
+
+          {/* "Paused" overlay — fades in when AI is not actively speaking,
+              giving the impression the avatar is silent without ever pausing
+              the underlying video (which would cause stutter). */}
+          <div
+            className="absolute inset-0 pointer-events-none transition-opacity duration-500"
+            style={{
+              opacity: state === "speaking" ? 0 : 0.45,
+              background:
+                "radial-gradient(circle at center, rgba(2,6,23,0.0) 30%, rgba(2,6,23,0.7) 100%)",
             }}
           />
 
