@@ -151,27 +151,19 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
       pc.ontrack = (e) => {
         if (audioEl.srcObject !== e.streams[0]) {
           audioEl.srcObject = e.streams[0];
+          remoteStreamRef.current = e.streams[0];
+          setRemoteStream(e.streams[0]);
 
-          // Add jitter buffer hint — gives WebRTC ~120ms to smooth out network
-          // jitter, dramatically reducing voice break-ups at the cost of a
-          // tiny bit of latency (imperceptible in conversation).
+          // Tighter jitter buffer (~80ms) — smooths network jitter without
+          // adding noticeable latency to the conversation.
           const receivers = pc.getReceivers();
           for (const r of receivers) {
             try {
-              (r as RTCRtpReceiver & { playoutDelayHint?: number }).playoutDelayHint = 0.12;
+              (r as RTCRtpReceiver & { playoutDelayHint?: number }).playoutDelayHint = 0.08;
             } catch {
               /* not supported in this browser */
             }
           }
-
-          // For the analyser, clone the stream so analysis runs on a SEPARATE
-          // MediaStream and never competes for buffers with the playback path.
-          // This eliminates the audio drop-outs caused by simultaneous
-          // sampling and playback.
-          const clonedTrack = e.track.clone();
-          const clonedStream = new MediaStream([clonedTrack]);
-          remoteStreamRef.current = clonedStream;
-          setRemoteStream(clonedStream);
 
           audioEl.play().catch((err) => {
             console.warn("Audio playback failed:", err);

@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import VideoAvatar from "@/components/VideoAvatar";
+import Avatar from "@/components/Avatar";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import SessionControls from "@/components/SessionControls";
 import { useRealtimeSession, TranscriptEntry } from "@/hooks/useRealtimeSession";
@@ -155,10 +155,7 @@ function SessionContent() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Avatar */}
         <div className="w-1/2 flex flex-col items-center justify-center bg-gray-950 border-r border-gray-800">
-          <VideoAvatar
-            state={avatarState}
-            remoteStream={remoteStream}
-          />
+          <Avatar state={avatarState} />
           {!isConnected && !isEnding && (
             <div className="mt-6 text-gray-500 text-sm animate-pulse">
               Connecting to your coach...
