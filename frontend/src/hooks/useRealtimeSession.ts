@@ -205,6 +205,26 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
         }
       });
 
+      // Once the data channel is open, kick off the AI greeting so the user
+      // knows the coach is ready and listening. Without this, the AI would
+      // wait silently until VAD detects the user's voice.
+      dc.addEventListener("open", () => {
+        try {
+          dc.send(
+            JSON.stringify({
+              type: "response.create",
+              response: {
+                modalities: ["audio", "text"],
+                instructions:
+                  "Greet the user warmly in ONE short sentence. Briefly introduce yourself in character (e.g. 'Hi, I'm your practice partner') and tell them you're ready to listen whenever they want to begin. Do NOT ask any questions yet — you are in Phase 1 (listening mode).",
+              },
+            })
+          );
+        } catch (err) {
+          console.warn("Failed to send greeting trigger:", err);
+        }
+      });
+
       // Create and set local offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
