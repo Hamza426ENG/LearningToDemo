@@ -126,16 +126,42 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
         return;
       }
 
-      const pc = new RTCPeerConnection();
+      // Configure with STUN servers for NAT traversal (fixes choppy audio)
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun.cloudflare.com:3478" },
+        ],
+        bundlePolicy: "max-bundle",
+      });
       pcRef.current = pc;
 
-      // Set up audio playback — single audio element, no overlap
+      // Set up audio playback — attach to body so it actually plays in all browsers
       const audioEl = document.createElement("audio");
       audioEl.autoplay = true;
+      audioEl.setAttribute("playsinline", "true");
+      // Append hidden to body — Safari requires the element to be in the DOM
+      audioEl.style.display = "none";
+      document.body.appendChild(audioEl);
       audioElRef.current = audioEl;
 
       pc.ontrack = (e) => {
-        audioEl.srcObject = e.streams[0];
+        if (audioEl.srcObject !== e.streams[0]) {
+          audioEl.srcObject = e.streams[0];
+          // Force playback start
+          audioEl.play().catch((err) => {
+            console.warn("Audio playback failed:", err);
+          });
+        }
+      };
+
+      // Monitor connection state for diagnostics
+      pc.onconnectionstatechange = () => {
+        console.log("WebRTC connection state:", pc.connectionState);
+      };
+      pc.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", pc.iceConnectionState);
       };
 
       // Get microphone with noise suppression
@@ -144,9 +170,11 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 24000,
         },
       });
-      pc.addTrack(stream.getTracks()[0]);
+      pc.addTrack(stream.getTracks()[0], stream);
 
       // Create data channel for events
       const dc = pc.createDataChannel("oai-events");
@@ -202,6 +230,7 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
     }
     if (audioElRef.current) {
       audioElRef.current.srcObject = null;
+      audioElRef.current.remove();
       audioElRef.current = null;
     }
     dcRef.current = null;
