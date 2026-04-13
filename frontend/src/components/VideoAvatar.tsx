@@ -26,18 +26,62 @@ export default function VideoAvatar({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // Play / pause based on speaking state
+  // Smoothly ramp playbackRate between 0 (paused) and 1 (full speed) instead
+  // of hard play/pause — eliminates visible stutter when the AI starts/stops
+  // speaking.
+  const targetRateRef = useRef(0);
+  const rampRafRef = useRef<number | null>(null);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (state === "speaking") {
+    // Ensure playback is started (HTML <video> with playbackRate>0 will play
+    // only after .play()). We always keep it "playing" — the rate controls
+    // motion.
+    const ensurePlaying = () => {
+      // Set a tiny rate first so play() doesn't error on iOS, then ramp.
       video.play().catch(() => {
-        /* ignore autoplay errors */
+        /* will retry on user gesture */
       });
-    } else {
-      video.pause();
-    }
+    };
+    if (video.readyState >= 2) ensurePlaying();
+    else video.addEventListener("canplay", ensurePlaying, { once: true });
+
+    // Target rate based on state
+    targetRateRef.current = state === "speaking" ? 1.0 : 0.0;
+
+    // Smoothly interpolate current → target rate
+    const step = () => {
+      const current = video.playbackRate;
+      const target = targetRateRef.current;
+      const diff = target - current;
+      if (Math.abs(diff) < 0.02) {
+        // Snap & stop animating
+        try {
+          video.playbackRate = target;
+        } catch {
+          /* ignore */
+        }
+        rampRafRef.current = null;
+        return;
+      }
+      // Ease ~0.12 per frame → ~250ms ramp at 60fps
+      const next = Math.max(0, Math.min(1, current + diff * 0.12));
+      try {
+        video.playbackRate = next;
+      } catch {
+        /* ignore */
+      }
+      rampRafRef.current = requestAnimationFrame(step);
+    };
+    if (rampRafRef.current) cancelAnimationFrame(rampRafRef.current);
+    rampRafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      video.removeEventListener("canplay", ensurePlaying);
+      if (rampRafRef.current) cancelAnimationFrame(rampRafRef.current);
+    };
   }, [state]);
 
   // Audio amplitude → glow scale (visual reactivity)
@@ -127,15 +171,21 @@ export default function VideoAvatar({
             src={src}
             loop
             muted
+            autoPlay
             playsInline
             preload="auto"
-            className="absolute inset-0 w-full h-full object-cover"
+            disablePictureInPicture
+            className="absolute inset-0 w-full h-full object-cover will-change-transform"
             style={{
               filter:
-                state === "idle"
-                  ? "brightness(0.85) saturate(0.9)"
-                  : "brightness(1) saturate(1)",
-              transition: "filter 0.5s ease",
+                state === "speaking"
+                  ? "brightness(1.05) saturate(1.1)"
+                  : state === "listening"
+                  ? "brightness(1) saturate(1)"
+                  : state === "thinking"
+                  ? "brightness(0.9) saturate(0.95)"
+                  : "brightness(0.8) saturate(0.85)",
+              transition: "filter 0.6s ease",
             }}
           />
 
