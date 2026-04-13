@@ -24,6 +24,18 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  // Local microphone track — kept so we can mute/unmute it during AI speech
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
+  const [micEnabled, setMicEnabled] = useState(true);
+
+  // Helper: gate the local mic. When the bot is talking we mute it to prevent
+  // echo/self-interruption; we re-enable it as soon as the response finishes.
+  const setMic = useCallback((on: boolean) => {
+    if (micTrackRef.current) {
+      micTrackRef.current.enabled = on;
+    }
+    setMicEnabled(on);
+  }, []);
 
   // Track active response to prevent overlaps
   const activeResponseIdRef = useRef<string | null>(null);
@@ -69,10 +81,12 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           updateAvatarState("thinking");
           break;
 
-        // A new response is being created
+        // A new response is being created — mute the mic so the bot doesn't
+        // hear itself / get interrupted by background noise while talking.
         case "response.created":
           activeResponseIdRef.current = event.response?.id || null;
           isRespondingRef.current = true;
+          setMic(false);
           updateAvatarState("thinking");
           break;
 
@@ -83,6 +97,12 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
             updateAvatarState("speaking");
           }
           break;
+
+        // NOTE: We deliberately do NOT re-enable the mic on the
+        // intermediate "response.audio.done" / "output_audio_buffer.stopped"
+        // events — those fire while the response is still in progress and
+        // would let the user interrupt mid-thought. Mic only re-opens on
+        // `response.done` below.
 
         // Single response audio transcript complete
         case "response.audio_transcript.done":
@@ -95,11 +115,18 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           }
           break;
 
-        // Entire response finished
+        // Entire response finished — only NOW re-open the mic so the user
+        // cannot interrupt the bot while it is still speaking.
         case "response.done":
           isRespondingRef.current = false;
           activeResponseIdRef.current = null;
           assistantTranscriptBuffer.current = "";
+          // Slight delay matches the audio tail before re-enabling input,
+          // and gives the user a beat to start their reply intentionally.
+          setTimeout(() => {
+            // Double-check no new response started in the meantime.
+            if (!isRespondingRef.current) setMic(true);
+          }, 350);
           updateAvatarState("listening");
           break;
 
@@ -113,11 +140,12 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           console.error("Realtime error:", event.error);
           isRespondingRef.current = false;
           activeResponseIdRef.current = null;
+          setMic(true);
           updateAvatarState("listening");
           break;
       }
     },
-    [addTranscriptEntry, updateAvatarState]
+    [addTranscriptEntry, updateAvatarState, setMic]
   );
 
   const connect = useCallback(
@@ -190,7 +218,12 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           autoGainControl: true,
         },
       });
-      pc.addTrack(stream.getTracks()[0], stream);
+      const micTrack = stream.getTracks()[0];
+      micTrackRef.current = micTrack;
+      // Start muted — we'll open it after the AI greeting finishes.
+      micTrack.enabled = false;
+      setMicEnabled(false);
+      pc.addTrack(micTrack, stream);
 
       // Create data channel for events
       const dc = pc.createDataChannel("oai-events");
@@ -270,6 +303,8 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
       audioElRef.current = null;
     }
     dcRef.current = null;
+    micTrackRef.current = null;
+    setMicEnabled(false);
     remoteStreamRef.current = null;
     setRemoteStream(null);
     isRespondingRef.current = false;
@@ -305,6 +340,7 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
     transcript,
     avatarState,
     remoteStream,
+    micEnabled,
     connect,
     disconnect,
     sendMessage,

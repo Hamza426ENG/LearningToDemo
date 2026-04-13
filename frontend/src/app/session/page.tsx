@@ -26,7 +26,7 @@ function SessionContent() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasInitialized = useRef(false);
 
-  const { isConnected, transcript, avatarState, remoteStream, connect, disconnect } =
+  const { isConnected, transcript, avatarState, remoteStream, micEnabled, connect, disconnect } =
     useRealtimeSession();
 
   const initSession = useCallback(async () => {
@@ -180,6 +180,7 @@ function SessionContent() {
         isLoading={isEnding}
         onEndSession={handleEndSession}
         duration={duration}
+        micEnabled={micEnabled}
       />
     </main>
   );
