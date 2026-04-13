@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ScoreCard from "@/components/ScoreCard";
+import { generateAssessmentPDF } from "@/lib/pdf";
 
 interface AssessmentResult {
   sessionId: string;
@@ -80,19 +81,10 @@ export default function AssessmentPage() {
             Practice Again
           </button>
           <button
-            onClick={() => {
-              const data = JSON.stringify(assessment, null, 2);
-              const blob = new Blob([data], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `assessment-${Date.now()}.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
+            onClick={() => generateAssessmentPDF(assessment, sessionMeta)}
             className="px-8 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-medium transition-colors border border-gray-700"
           >
-            Download Report
+            Download PDF Report
           </button>
         </div>
       </div>
