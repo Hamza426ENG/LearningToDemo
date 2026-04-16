@@ -69,24 +69,42 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
     [options]
   );
 
+  // Helper: send a message on the data channel if open
+  const dcSend = useCallback((msg: object) => {
+    if (dcRef.current?.readyState === "open") {
+      dcRef.current.send(JSON.stringify(msg));
+    }
+  }, []);
+
   const handleRealtimeEvent = useCallback(
     (event: any) => {
       switch (event.type) {
-        // User started speaking — server VAD handles interruption automatically
+        // User started speaking
         case "input_audio_buffer.speech_started":
+          // If the AI is still speaking, this is almost certainly echo /
+          // background noise that leaked before the mic was muted.  Flush
+          // the server buffer so VAD doesn't act on it.
+          if (isRespondingRef.current) {
+            dcSend({ type: "input_audio_buffer.clear" });
+            break;
+          }
           updateAvatarState("listening");
           break;
 
         case "input_audio_buffer.speech_stopped":
+          // Ignore false stops triggered during active responses
+          if (isRespondingRef.current) break;
           updateAvatarState("thinking");
           break;
 
-        // A new response is being created — mute the mic so the bot doesn't
-        // hear itself / get interrupted by background noise while talking.
+        // A new response is being created — mute the mic and flush any
+        // buffered audio on the server so echo doesn't trigger a second
+        // response that would interrupt this one.
         case "response.created":
           activeResponseIdRef.current = event.response?.id || null;
           isRespondingRef.current = true;
           setMic(false);
+          dcSend({ type: "input_audio_buffer.clear" });
           updateAvatarState("thinking");
           break;
 
@@ -121,10 +139,11 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           isRespondingRef.current = false;
           activeResponseIdRef.current = null;
           assistantTranscriptBuffer.current = "";
-          // Delay re-enabling mic until the audio output fully drains,
-          // preventing residual playback from triggering a false VAD cycle.
+          // Flush any audio that accumulated during the response, then
+          // re-enable mic after a delay so residual playback doesn't
+          // immediately trigger a new VAD cycle.
+          dcSend({ type: "input_audio_buffer.clear" });
           setTimeout(() => {
-            // Double-check no new response started in the meantime.
             if (!isRespondingRef.current) setMic(true);
           }, 600);
           updateAvatarState("listening");
@@ -145,7 +164,7 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           break;
       }
     },
-    [addTranscriptEntry, updateAvatarState, setMic]
+    [addTranscriptEntry, updateAvatarState, setMic, dcSend]
   );
 
   const connect = useCallback(
