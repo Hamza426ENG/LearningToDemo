@@ -3,6 +3,7 @@ export async function startSession(data: {
   context: string;
   mode: string;
   voice: string;
+  dataSource?: string;
 }) {
   const res = await fetch(`/api/session/start`, {
     method: "POST",

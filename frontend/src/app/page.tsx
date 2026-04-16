@@ -22,6 +22,12 @@ const MODES = [
     description: "Practice pitching to executives or investors under pressure",
     icon: "🎯",
   },
+  {
+    id: "certification",
+    label: "Get Certified",
+    description: "Take a certification exam on a topic with an AI investigator",
+    icon: "🏆",
+  },
 ];
 
 const VOICES = [
@@ -36,6 +42,7 @@ export default function Home() {
   const router = useRouter();
   const [topic, setTopic] = useState("");
   const [context, setContext] = useState("");
+  const [dataSource, setDataSource] = useState("");
   const [mode, setMode] = useState("demo");
   const [voice, setVoice] = useState("alloy");
   const [isLoading, setIsLoading] = useState(false);
@@ -44,6 +51,11 @@ export default function Home() {
   const handleStart = async () => {
     if (!topic.trim()) {
       setError("Please enter a topic for your practice session.");
+      return;
+    }
+
+    if (mode === "certification" && !dataSource.trim()) {
+      setError("Please provide learning materials or data source for certification.");
       return;
     }
 
@@ -56,6 +68,11 @@ export default function Home() {
       mode,
       voice,
     });
+    
+    if (mode === "certification" && dataSource.trim()) {
+      params.append("dataSource", dataSource.trim());
+    }
+    
     router.push(`/session?${params.toString()}`);
   };
 
@@ -102,6 +119,26 @@ export default function Home() {
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
+
+          {/* Data Source - Only show for certification mode */}
+          {mode === "certification" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Learning Materials / Data Source{" "}
+                <span className="text-yellow-400">(required for certification)</span>
+              </label>
+              <textarea
+                value={dataSource}
+                onChange={(e) => setDataSource(e.target.value)}
+                placeholder="Paste the learning materials, documentation, or key information the candidate should know for certification..."
+                rows={4}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                This will be used to validate the candidate's knowledge during the certification exam.
+              </p>
+            </div>
+          )}
 
           {/* Mode */}
           <div>

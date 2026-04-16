@@ -10,9 +10,14 @@ interface AssessmentCategory {
 interface AssessmentResult {
   sessionId: string;
   overallScore: number;
+  certificationScore?: number;
+  certificationStatus?: "pass" | "fail";
+  isCertification?: boolean;
   categories: AssessmentCategory[];
   strengths: string[];
-  improvements: string[];
+  improvements?: string[];
+  weaknesses?: string[];
+  areasForImprovement?: string[];
   tips: string[];
   summary: string;
 }
@@ -32,6 +37,7 @@ export function generateAssessmentPDF(
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 40;
   const contentWidth = pageWidth - margin * 2;
+  const isCert = assessment.isCertification || meta.mode === "certification";
   let y = margin;
 
   const checkPageBreak = (needed: number) => {
@@ -159,6 +165,27 @@ export function generateAssessmentPDF(
 
   y += 120;
 
+  // ---------- CERTIFICATION RESULT (if applicable) ----------
+  if (isCert) {
+    checkPageBreak(50);
+    const certStatus = assessment.certificationStatus || (score >= 70 ? "pass" : "fail");
+    const certScore = assessment.certificationScore || score;
+    const passed = certStatus === "pass";
+    const badgeColor: [number, number, number] = passed ? [34, 197, 94] : [220, 53, 69];
+
+    doc.setFillColor(passed ? 240 : 254, passed ? 253 : 242, passed ? 244 : 242);
+    doc.roundedRect(margin, y, contentWidth, 36, 6, 6, "F");
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(badgeColor[0], badgeColor[1], badgeColor[2]);
+    doc.text(passed ? "PASSED" : "NOT PASSED", margin + 14, y + 23);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Certification Score: ${certScore}/100  |  Passing threshold: 70/100`, margin + 110, y + 23);
+    y += 50;
+  }
+
   // ---------- CATEGORY BREAKDOWN ----------
   checkPageBreak(40);
   writeWrapped("Detailed Breakdown", 14, "bold", [30, 30, 30]);
@@ -238,6 +265,9 @@ export function generateAssessmentPDF(
     y += 10;
   };
 
+  const improvementsList = assessment.areasForImprovement || assessment.improvements || [];
+  const weaknessesList = assessment.weaknesses || [];
+
   renderListSection(
     "Strengths",
     assessment.strengths,
@@ -245,13 +275,13 @@ export function generateAssessmentPDF(
     "+"
   );
   renderListSection(
-    "Areas to Improve",
-    assessment.improvements,
+    isCert ? "Weaknesses" : "Areas to Improve",
+    weaknessesList.length > 0 ? weaknessesList : improvementsList,
     [220, 53, 69],
     ">"
   );
   renderListSection(
-    "Pro Tips",
+    isCert ? "Next Steps" : "Pro Tips",
     assessment.tips,
     [59, 130, 246],
     "*"

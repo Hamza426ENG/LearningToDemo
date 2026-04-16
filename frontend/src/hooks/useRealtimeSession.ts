@@ -121,12 +121,12 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           isRespondingRef.current = false;
           activeResponseIdRef.current = null;
           assistantTranscriptBuffer.current = "";
-          // Slight delay matches the audio tail before re-enabling input,
-          // and gives the user a beat to start their reply intentionally.
+          // Delay re-enabling mic until the audio output fully drains,
+          // preventing residual playback from triggering a false VAD cycle.
           setTimeout(() => {
             // Double-check no new response started in the meantime.
             if (!isRespondingRef.current) setMic(true);
-          }, 350);
+          }, 600);
           updateAvatarState("listening");
           break;
 
@@ -182,12 +182,12 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           remoteStreamRef.current = e.streams[0];
           setRemoteStream(e.streams[0]);
 
-          // Tighter jitter buffer (~80ms) — smooths network jitter without
-          // adding noticeable latency to the conversation.
+          // Jitter buffer (~150ms) — tolerates typical network jitter without
+          // noticeable conversational latency.
           const receivers = pc.getReceivers();
           for (const r of receivers) {
             try {
-              (r as RTCRtpReceiver & { playoutDelayHint?: number }).playoutDelayHint = 0.08;
+              (r as RTCRtpReceiver & { playoutDelayHint?: number }).playoutDelayHint = 0.15;
             } catch {
               /* not supported in this browser */
             }
@@ -199,12 +199,20 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
         }
       };
 
-      // Monitor connection state for diagnostics
+      // Monitor connection state and attempt ICE restart on failure
       pc.onconnectionstatechange = () => {
         console.log("WebRTC connection state:", pc.connectionState);
+        if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+          console.warn("WebRTC connection degraded — attempting ICE restart");
+          pc.restartIce();
+        }
       };
       pc.oniceconnectionstatechange = () => {
         console.log("ICE connection state:", pc.iceConnectionState);
+        if (pc.iceConnectionState === "disconnected") {
+          console.warn("ICE disconnected — attempting restart");
+          pc.restartIce();
+        }
       };
 
       // Get microphone with noise suppression. We deliberately do NOT pin

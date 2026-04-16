@@ -12,13 +12,16 @@ interface AssessmentResult {
   overallScore: number;
   categories: AssessmentCategory[];
   strengths: string[];
-  improvements: string[];
+  improvements?: string[];
+  weaknesses?: string[];
+  areasForImprovement?: string[];
   tips: string[];
   summary: string;
 }
 
 interface ScoreCardProps {
   assessment: AssessmentResult;
+  isCertification?: boolean;
 }
 
 function getScoreColor(score: number, max: number) {
@@ -36,8 +39,10 @@ function getOverallGrade(score: number) {
   return { grade: "D", color: "text-red-400", label: "Needs Work" };
 }
 
-export default function ScoreCard({ assessment }: ScoreCardProps) {
+export default function ScoreCard({ assessment, isCertification = false }: ScoreCardProps) {
   const overall = getOverallGrade(assessment.overallScore);
+  const improvementsList = assessment.areasForImprovement || assessment.improvements || [];
+  const weaknessesList = assessment.weaknesses || [];
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -57,7 +62,9 @@ export default function ScoreCard({ assessment }: ScoreCardProps) {
 
       {/* Categories */}
       <div>
-        <h3 className="text-lg font-semibold text-white mb-4">Detailed Breakdown</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">
+          {isCertification ? "Knowledge Assessment Breakdown" : "Detailed Breakdown"}
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {assessment.categories.map((cat) => {
             const colors = getScoreColor(cat.score, cat.maxScore);
@@ -86,8 +93,8 @@ export default function ScoreCard({ assessment }: ScoreCardProps) {
         </div>
       </div>
 
-      {/* Strengths, Improvements, Tips */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Strengths, Improvements/Weaknesses, Tips */}
+      <div className={`grid ${isCertification ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-3"} gap-4`}>
         <div className="bg-green-950/30 border border-green-900/50 rounded-xl p-5">
           <h4 className="text-green-400 font-semibold mb-3 text-sm uppercase tracking-wide">
             Strengths
@@ -104,10 +111,10 @@ export default function ScoreCard({ assessment }: ScoreCardProps) {
 
         <div className="bg-red-950/30 border border-red-900/50 rounded-xl p-5">
           <h4 className="text-red-400 font-semibold mb-3 text-sm uppercase tracking-wide">
-            Areas to Improve
+            {isCertification ? "Weaknesses" : "Areas to Improve"}
           </h4>
           <ul className="space-y-2">
-            {assessment.improvements.map((s, i) => (
+            {(weaknessesList.length > 0 ? weaknessesList : improvementsList).map((s, i) => (
               <li key={i} className="text-sm text-gray-300 flex gap-2">
                 <span className="text-red-400 mt-0.5">→</span>
                 {s}
@@ -118,7 +125,7 @@ export default function ScoreCard({ assessment }: ScoreCardProps) {
 
         <div className="bg-blue-950/30 border border-blue-900/50 rounded-xl p-5">
           <h4 className="text-blue-400 font-semibold mb-3 text-sm uppercase tracking-wide">
-            Pro Tips
+            {isCertification ? "Next Steps" : "Pro Tips"}
           </h4>
           <ul className="space-y-2">
             {assessment.tips.map((s, i) => (

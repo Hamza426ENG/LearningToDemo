@@ -12,7 +12,7 @@ interface TranscriptEntry {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, topic, context, mode, transcript, startedAt, endedAt } =
+    const { sessionId, topic, context, mode, transcript, startedAt, endedAt, dataSource } =
       (await req.json()) as {
         sessionId: string;
         topic: string;
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
         transcript: TranscriptEntry[];
         startedAt: string;
         endedAt: string;
+        dataSource?: string;
       };
 
     if (!transcript || transcript.length < 2) {
@@ -34,7 +35,54 @@ export async function POST(req: NextRequest) {
       .map((t) => `[${t.role.toUpperCase()}]: ${t.text}`)
       .join("\n");
 
-    const prompt = `You are an expert communication coach and product demonstration assessor.
+    let prompt = "";
+    
+    if (mode === "certification") {
+      prompt = `You are an expert certification examiner and knowledge assessor.
+Analyze the following certification exam transcript and provide a detailed assessment of the candidate's knowledge.
+
+CERTIFICATION DETAILS:
+- Topic: ${topic}
+- Data Source: ${dataSource || "Not provided"}
+- Duration: From ${startedAt} to ${endedAt}
+
+TRANSCRIPT:
+${transcriptText}
+
+Your task:
+1. Evaluate the candidate's answers for technical accuracy and depth
+2. Assess their understanding of core concepts, practical application, and problem-solving
+3. Determine if they meet the certification standard (typically 70+ is passing)
+
+Provide your assessment as a JSON object with this exact structure:
+{
+  "overallScore": <number 0-100, where 70+ is passing>,
+  "certificationStatus": "<pass or fail based on 70% threshold>",
+  "certificationScore": <number 0-100>,
+  "isCertification": true,
+  "categories": [
+    { "name": "Technical Knowledge & Accuracy", "score": <1-10>, "maxScore": 10, "feedback": "<specific feedback on accuracy>" },
+    { "name": "Depth of Understanding", "score": <1-10>, "maxScore": 10, "feedback": "<feedback on depth>" },
+    { "name": "Practical Application", "score": <1-10>, "maxScore": 10, "feedback": "<feedback on application>" },
+    { "name": "Problem-Solving & Critical Thinking", "score": <1-10>, "maxScore": 10, "feedback": "<feedback on reasoning>" },
+    { "name": "Communication & Clarity", "score": <1-10>, "maxScore": 10, "feedback": "<feedback on clarity>" },
+    { "name": "Confidence & Completeness", "score": <1-10>, "maxScore": 10, "feedback": "<feedback on completeness>" }
+  ],
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
+  "areasForImprovement": ["<area 1>", "<area 2>", "<area 3>"],
+  "tips": ["<actionable tip 1>", "<actionable tip 2>", "<actionable tip 3>"],
+  "summary": "<2-3 sentence summary of certification result and key observations>"
+}
+
+IMPORTANT:
+- Be rigorous and fair. Award points only if answers are technically correct
+- Set certificationStatus to "pass" if overallScore >= 70, else "fail"
+- Reference specific answers from the transcript in your feedback
+
+Return ONLY the JSON object, no markdown or other text.`;
+    } else {
+      prompt = `You are an expert communication coach and product demonstration assessor.
 Analyze the following practice session transcript and provide a detailed assessment.
 
 SESSION DETAILS:
@@ -67,6 +115,7 @@ Provide your assessment as a JSON object with this exact structure:
 
 Be specific, constructive, and reference actual parts of the transcript in your feedback.
 Return ONLY the JSON object, no markdown or other text.`;
+    }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({

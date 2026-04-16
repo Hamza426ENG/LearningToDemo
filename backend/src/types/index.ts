@@ -2,7 +2,8 @@ export interface Session {
   id: string;
   topic: string;
   context: string;
-  mode: "demo" | "conversation" | "pitch";
+  dataSource?: string;
+  mode: "demo" | "conversation" | "pitch" | "certification";
   transcript: TranscriptEntry[];
   startedAt: string;
   endedAt?: string;
@@ -22,6 +23,9 @@ export interface AssessmentResult {
   improvements: string[];
   tips: string[];
   summary: string;
+  isCertification?: boolean;
+  certificationStatus?: "pass" | "fail";
+  certificationScore?: number;
 }
 
 export interface AssessmentCategory {

@@ -16,6 +16,7 @@ function SessionContent() {
   const context = searchParams.get("context") || "";
   const mode = searchParams.get("mode") || "demo";
   const voice = searchParams.get("voice") || "alloy";
+  const dataSource = searchParams.get("dataSource") || "";
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isEnding, setIsEnding] = useState(false);
@@ -31,7 +32,7 @@ function SessionContent() {
 
   const initSession = useCallback(async () => {
     try {
-      const data = await startSession({ topic, context, mode, voice });
+      const data = await startSession({ topic, context, mode, voice, dataSource });
       setSessionId(data.sessionId);
 
       // Connect to OpenAI Realtime via WebRTC
@@ -53,7 +54,7 @@ function SessionContent() {
     } catch (err: any) {
       setError(err.message || "Failed to start session");
     }
-  }, [topic, context, mode, voice, connect]);
+  }, [topic, context, mode, voice, dataSource, connect]);
 
   useEffect(() => {
     if (!topic) {
