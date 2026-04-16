@@ -31,12 +31,12 @@ export async function POST(req: NextRequest) {
           input_audio_transcription: { model: "whisper-1" },
           turn_detection: {
             type: "server_vad",
-            threshold: 0.55,
-            prefix_padding_ms: 250,
-            silence_duration_ms: 600,
+            threshold: 0.8,
+            prefix_padding_ms: 500,
+            silence_duration_ms: 1200,
             create_response: true,
           },
-          max_response_output_tokens: 200,
+          max_response_output_tokens: 4096,
         }),
       }
     );
