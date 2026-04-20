@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { OPENAI_API_KEY } from "@/lib/openai-key";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,7 +13,7 @@ interface TranscriptEntry {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, topic, context, mode, transcript, startedAt, endedAt, dataSource, apiKey } =
+    const { sessionId, topic, context, mode, transcript, startedAt, endedAt, dataSource } =
       (await req.json()) as {
         sessionId: string;
         topic: string;
@@ -22,15 +23,7 @@ export async function POST(req: NextRequest) {
         startedAt: string;
         endedAt: string;
         dataSource?: string;
-        apiKey?: string;
       };
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "OpenAI API key is required" },
-        { status: 400 }
-      );
-    }
 
     if (!transcript || transcript.length < 2) {
       return NextResponse.json(
@@ -125,7 +118,7 @@ Be specific, constructive, and reference actual parts of the transcript in your 
 Return ONLY the JSON object, no markdown or other text.`;
     }
 
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],

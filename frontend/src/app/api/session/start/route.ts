@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildInstructions } from "@/lib/instructions";
+import { OPENAI_API_KEY } from "@/lib/openai-key";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { topic, context, mode, voice, apiKey } = await req.json();
+    const { topic, context, mode, voice } = await req.json();
 
     if (!topic || !mode) {
       return NextResponse.json(
         { error: "Topic and mode are required" },
-        { status: 400 }
-      );
-    }
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "OpenAI API key is required" },
         { status: 400 }
       );
     }
@@ -28,7 +22,7 @@ export async function POST(req: NextRequest) {
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
