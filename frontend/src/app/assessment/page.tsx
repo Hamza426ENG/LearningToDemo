@@ -40,12 +40,34 @@ export default function AssessmentPage() {
       router.push("/");
       return;
     }
-    setAssessment(JSON.parse(stored));
+    const parsed = JSON.parse(stored);
+    setAssessment(parsed);
     setSessionMeta({
       topic: sessionStorage.getItem("sessionTopic") || "",
       mode: sessionStorage.getItem("sessionMode") || "",
       duration: sessionStorage.getItem("sessionDuration") || "",
     });
+
+    // Update session log with score, transcript, and full assessment
+    const sid = sessionStorage.getItem("sessionId");
+    if (sid) {
+      let transcript = [];
+      try { transcript = JSON.parse(sessionStorage.getItem("sessionTranscript") || "[]"); } catch {}
+      fetch("/api/logs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: sid,
+          score: parsed.overallScore,
+          certificationStatus: parsed.certificationStatus,
+          duration: sessionStorage.getItem("sessionDuration") || "",
+          endedAt: new Date().toISOString(),
+          status: "completed",
+          transcript,
+          assessment: parsed,
+        }),
+      }).catch(() => {});
+    }
   }, [router]);
 
   if (!assessment) {
