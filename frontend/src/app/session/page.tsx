@@ -12,8 +12,6 @@ function SessionContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const userName = searchParams.get("userName") || "";
-  const userEmail = searchParams.get("userEmail") || "";
   const topic = searchParams.get("topic") || "";
   const context = searchParams.get("context") || "";
   const mode = searchParams.get("mode") || "demo";
@@ -36,22 +34,6 @@ function SessionContent() {
     try {
       const data = await startSession({ topic, context, mode, voice, dataSource });
       setSessionId(data.sessionId);
-
-      // Log session for admin tracking
-      fetch("/api/logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: data.sessionId,
-          userName,
-          userEmail,
-          topic,
-          mode,
-          voice,
-          context,
-          dataSource,
-        }),
-      }).catch(() => {});
 
       // Connect to OpenAI Realtime via WebRTC
       const secret =
@@ -111,7 +93,6 @@ function SessionContent() {
         "assessment",
         JSON.stringify(result.assessment)
       );
-      sessionStorage.setItem("sessionId", sessionId);
       sessionStorage.setItem("sessionTopic", topic);
       sessionStorage.setItem("sessionMode", mode);
       sessionStorage.setItem("sessionDuration", duration);
