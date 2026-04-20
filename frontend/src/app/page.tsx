@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const MODES = [
@@ -40,7 +40,16 @@ const VOICES = [
 
 export default function Home() {
   const router = useRouter();
+  const [apiKey, setApiKey] = useState("");
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [topic, setTopic] = useState("");
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("openai_api_key");
+    if (saved) setApiKey(saved);
+  }, []);
   const [context, setContext] = useState("");
   const [dataSource, setDataSource] = useState("");
   const [mode, setMode] = useState("demo");
@@ -49,6 +58,16 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const handleStart = async () => {
+    if (!apiKey.trim()) {
+      setError("Please enter your OpenAI API key.");
+      return;
+    }
+
+    if (!userName.trim() || !userEmail.trim()) {
+      setError("Please enter your name and email.");
+      return;
+    }
+
     if (!topic.trim()) {
       setError("Please enter a topic for your practice session.");
       return;
@@ -62,17 +81,22 @@ export default function Home() {
     setIsLoading(true);
     setError("");
 
+    // Persist API key in browser only
+    localStorage.setItem("openai_api_key", apiKey.trim());
+
     const params = new URLSearchParams({
+      userName: userName.trim(),
+      userEmail: userEmail.trim(),
       topic: topic.trim(),
       context: context.trim(),
       mode,
       voice,
     });
-    
+
     if (mode === "certification" && dataSource.trim()) {
       params.append("dataSource", dataSource.trim());
     }
-    
+
     router.push(`/session?${params.toString()}`);
   };
 
@@ -91,6 +115,51 @@ export default function Home() {
 
         {/* Form */}
         <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 space-y-6">
+          {/* API Key */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              OpenAI API Key <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-..."
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Stored in your browser only. Never sent to our servers.
+            </p>
+          </div>
+
+          {/* User Info */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Your Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="e.g., John Doe"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Your Email <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="email"
+                value={userEmail}
+                onChange={(e) => setUserEmail(e.target.value)}
+                placeholder="e.g., john@company.com"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
           {/* Topic */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">

@@ -1,3 +1,9 @@
+function getApiKey(): string {
+  const key = typeof window !== "undefined" ? localStorage.getItem("openai_api_key") : null;
+  if (!key) throw new Error("OpenAI API key not found. Please go back and enter your key.");
+  return key;
+}
+
 export async function startSession(data: {
   topic: string;
   context: string;
@@ -8,7 +14,7 @@ export async function startSession(data: {
   const res = await fetch(`/api/session/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, apiKey: getApiKey() }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -27,6 +33,7 @@ export async function endSession(
       ...meta,
       transcript,
       endedAt: new Date().toISOString(),
+      apiKey: getApiKey(),
     }),
   });
   if (!res.ok) throw new Error(await res.text());
