@@ -79,36 +79,36 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
   const handleRealtimeEvent = useCallback(
     (event: any) => {
       switch (event.type) {
-        // User started speaking
+        // ----- VAD events (create_response is OFF, so we control it) -----
+
         case "input_audio_buffer.speech_started":
-          // If the AI is still speaking, this is almost certainly echo /
-          // background noise that leaked before the mic was muted.  Flush
-          // the server buffer so VAD doesn't act on it.
-          if (isRespondingRef.current) {
-            dcSend({ type: "input_audio_buffer.clear" });
-            break;
-          }
+          // Ignore any speech detection while the AI is talking — it's echo.
+          if (isRespondingRef.current) break;
           updateAvatarState("listening");
           break;
 
         case "input_audio_buffer.speech_stopped":
-          // Ignore false stops triggered during active responses
+          // Ignore false stops during active responses.
           if (isRespondingRef.current) break;
           updateAvatarState("thinking");
+          // VAD confirmed the user finished speaking — NOW we create the
+          // response ourselves.  Because create_response is false, this is
+          // the ONLY path that triggers a new AI turn.
+          dcSend({ type: "response.create" });
           break;
 
-        // A new response is being created — mute the mic and flush any
-        // buffered audio on the server so echo doesn't trigger a second
-        // response that would interrupt this one.
+        // ----- Response lifecycle -----
+
         case "response.created":
           activeResponseIdRef.current = event.response?.id || null;
           isRespondingRef.current = true;
           setMic(false);
+          // Flush any lingering mic audio so it doesn't queue up on the
+          // server while the AI speaks.
           dcSend({ type: "input_audio_buffer.clear" });
           updateAvatarState("thinking");
           break;
 
-        // Audio transcript streaming in
         case "response.audio_transcript.delta":
           if (event.response_id === activeResponseIdRef.current) {
             assistantTranscriptBuffer.current += event.delta || "";
@@ -116,13 +116,6 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           }
           break;
 
-        // NOTE: We deliberately do NOT re-enable the mic on the
-        // intermediate "response.audio.done" / "output_audio_buffer.stopped"
-        // events — those fire while the response is still in progress and
-        // would let the user interrupt mid-thought. Mic only re-opens on
-        // `response.done` below.
-
-        // Single response audio transcript complete
         case "response.audio_transcript.done":
           if (event.response_id === activeResponseIdRef.current) {
             addTranscriptEntry(
@@ -133,28 +126,29 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions = {}) {
           }
           break;
 
-        // Entire response finished — only NOW re-open the mic so the user
-        // cannot interrupt the bot while it is still speaking.
-        case "response.done":
+        // Entire response finished — re-open the mic.
+        case "response.done": {
+          const status = event.response?.status;
+          if (status === "cancelled") {
+            console.warn("Response was cancelled (interrupted)");
+          }
           isRespondingRef.current = false;
           activeResponseIdRef.current = null;
           assistantTranscriptBuffer.current = "";
-          // Flush any audio that accumulated during the response, then
-          // re-enable mic after a delay so residual playback doesn't
-          // immediately trigger a new VAD cycle.
           dcSend({ type: "input_audio_buffer.clear" });
           setTimeout(() => {
             if (!isRespondingRef.current) setMic(true);
           }, 600);
           updateAvatarState("listening");
           break;
+        }
 
-        // User speech transcribed
+        // ----- Transcript & errors -----
+
         case "conversation.item.input_audio_transcription.completed":
           addTranscriptEntry("user", event.transcript || "");
           break;
 
-        // Handle errors gracefully
         case "error":
           console.error("Realtime error:", event.error);
           isRespondingRef.current = false;

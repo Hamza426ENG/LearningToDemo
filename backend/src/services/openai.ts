@@ -27,7 +27,7 @@ export async function createRealtimeSession(
         threshold: 0.8,
         prefix_padding_ms: 500,
         silence_duration_ms: 1200,
-        create_response: true,
+        create_response: false,
       },
       max_response_output_tokens: 4096,
     }),
